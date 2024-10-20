@@ -116,6 +116,8 @@ ID2D1Bitmap* bmpHurtEvil[11]{ nullptr };
 std::vector<gamedll::ATOM>vObstacles;
 std::vector<gamedll::ATOM>vCoins;
 
+gamedll::Creature PacMan{ nullptr };
+
 ////////////////////////////////
 
 template<typename T> concept CanBeReleased = requires (T what)
@@ -189,11 +191,13 @@ void InitGame()
     vObstacles.clear();
     vCoins.clear();
 
-    for (float dum_x = 50; dum_x < scr_width - 50.0f; dum_x += 50.0f)
+    ClearMem(&PacMan);
+
+    for (float dum_x = 50.0f; dum_x < scr_width - 50.0f; dum_x += 50.0f)
     {
         for (float dum_y = 100.0f; dum_y < ground - 50.0f; dum_y += 100.0f)
         {
-            if (RandGenerator(0, 1) == 1)vObstacles.push_back(gamedll::ATOM(dum_x, dum_y, 50.0f, 50.0f));
+            if (RandGenerator(0, 1) == 1)vObstacles.push_back(gamedll::ATOM(dum_x, dum_y, 45.0f, 45.0f));
         }
     }
     for (float dum_y = 70.0f; dum_y < ground - 50.0f; dum_y += 50.0f)
@@ -216,6 +220,8 @@ void InitGame()
             if(dummy_ok)vCoins.push_back(dummy);
         }
     }
+
+    PacMan = gamedll::Factory(creatures::pacman, 45.0f, ground - 45.0f);
 }
 
 void GameOver()
@@ -396,6 +402,28 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
             SendMessage(hwnd, WM_CLOSE, NULL, NULL);
             break;
 
+        }
+        break;
+
+    case WM_KEYDOWN:
+        if (!PacMan)break;
+        switch (LOWORD(wParam))
+        {
+        case VK_LEFT:
+            PacMan->dir = dirs::left;
+            break;
+
+        case VK_RIGHT:
+            PacMan->dir = dirs::right;
+            break;
+
+        case VK_UP:
+            PacMan->dir = dirs::up;
+            break;
+
+        case VK_DOWN:
+            PacMan->dir = dirs::down;
+            break;
         }
         break;
 
@@ -786,7 +814,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         }
         ///////////////////////////////
 
+        if (PacMan && !vObstacles.empty())
+        {
+            gamedll::ATOMPACK LevelObstacles(vObstacles.size());
+            for (int i = 0; i < vObstacles.size(); i++) LevelObstacles.push_back(vObstacles[i]);
+
+            PacMan->Move(speed, PacMan->dir, dirs::stop, LevelObstacles);
         
+            
+        }
         
         
         
@@ -820,6 +856,32 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         {
             for (int i = 0; i < vCoins.size(); i++)
                 Draw->DrawBitmap(bmpCoin, D2D1::RectF(vCoins[i].x, vCoins[i].y, vCoins[i].ex, vCoins[i].ey));
+        }
+
+        if (PacMan)
+        {
+            switch (PacMan->dir)
+            {
+            case dirs::left:
+                Draw->DrawBitmap(bmpPackManL[PacMan->GetFrame()], D2D1::RectF(PacMan->x, PacMan->y, PacMan->ex, PacMan->ey));
+                break;
+
+            case dirs::right:
+                Draw->DrawBitmap(bmpPackManR[PacMan->GetFrame()], D2D1::RectF(PacMan->x, PacMan->y, PacMan->ex, PacMan->ey));
+                break;
+
+            case dirs::up:
+                Draw->DrawBitmap(bmpPackManU[PacMan->GetFrame()], D2D1::RectF(PacMan->x, PacMan->y, PacMan->ex, PacMan->ey));
+                break;
+
+            case dirs::down:
+                Draw->DrawBitmap(bmpPackManD[PacMan->GetFrame()], D2D1::RectF(PacMan->x, PacMan->y, PacMan->ex, PacMan->ey));
+                break;
+
+            case dirs::stop:
+                Draw->DrawBitmap(bmpPackManR[PacMan->GetFrame()], D2D1::RectF(PacMan->x, PacMan->y, PacMan->ex, PacMan->ey));
+                break;
+            }
         }
 
         /////////////////////////////////
