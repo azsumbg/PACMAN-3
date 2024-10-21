@@ -117,6 +117,7 @@ std::vector<gamedll::ATOM>vObstacles;
 std::vector<gamedll::ATOM>vCoins;
 
 gamedll::Creature PacMan{ nullptr };
+std::vector<gamedll::Creature>vGhosts;
 
 ////////////////////////////////
 
@@ -192,6 +193,9 @@ void InitGame()
     vCoins.clear();
 
     ClearMem(&PacMan);
+    if (!vGhosts.empty())
+        for (int i = 0; i < vGhosts.size(); i++)ClearMem(&vGhosts[i]);
+    vGhosts.clear();
 
     for (float dum_x = 50.0f; dum_x < scr_width - 50.0f; dum_x += 50.0f)
     {
@@ -816,17 +820,66 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
         if (PacMan && !vObstacles.empty())
         {
-            gamedll::ATOMPACK LevelObstacles(vObstacles.size());
-            for (int i = 0; i < vObstacles.size(); i++) LevelObstacles.push_back(vObstacles[i]);
+            gamedll::ATOMPACK LevelObstacles((int)(vObstacles.size()));
+            for (int i = 0; i < (int)(vObstacles.size()); i++) LevelObstacles.push_back(vObstacles[i]);
 
             PacMan->Move(speed, PacMan->dir, dirs::stop, LevelObstacles);
-        
-            
         }
         
+        if (vGhosts.size() < 4 + level)
+        {
+            float temp_x = (float)(RandGenerator(200, (int)(scr_width - 50.0f)));
+            float temp_y{};
+            int temp_type = RandGenerator(0, 3);
+            int temp_dir = RandGenerator(0, 3);
+            
+            if (RandGenerator(0, 2) == 1)temp_y = sky;
+            else temp_y = ground - 40.0f;
+           
+            vGhosts.push_back(gamedll::Factory(static_cast<creatures>(temp_type), temp_x, temp_y));
+            vGhosts.back()->dir = static_cast<dirs>(temp_dir);
+        }
         
-        
-        
+        if (!vGhosts.empty() && !vObstacles.empty())
+        {
+            gamedll::ATOMPACK ObstPack(vObstacles.size());
+
+            for (int i = 0; i < vObstacles.size(); i++)ObstPack.push_back(vObstacles[i]);
+
+            for (std::vector<gamedll::Creature>::iterator evil = vGhosts.begin(); evil < vGhosts.end(); evil++)
+            {
+                int temp_dir = RandGenerator(0, 2);
+
+                switch ((*evil)->dir)
+                {
+                case dirs::up:
+                    if (temp_dir == 0) (*evil)->Move(speed, dirs::up, dirs::down, ObstPack);
+                    else if (temp_dir == 1) (*evil)->Move(speed, dirs::up, dirs::left, ObstPack);
+                    else (*evil)->Move(speed, dirs::up, dirs::right, ObstPack);
+                    break;
+
+                case dirs::down:
+                    if (temp_dir == 0) (*evil)->Move(speed, dirs::down, dirs::up, ObstPack);
+                    else if (temp_dir == 1) (*evil)->Move(speed, dirs::down, dirs::left, ObstPack);
+                    else (*evil)->Move(speed, dirs::down, dirs::right, ObstPack);
+                    break;
+
+                case dirs::left:
+                    if (temp_dir == 0) (*evil)->Move(speed, dirs::left, dirs::right, ObstPack);
+                    else if (temp_dir == 1) (*evil)->Move(speed, dirs::left, dirs::up, ObstPack);
+                    else (*evil)->Move(speed, dirs::left, dirs::down, ObstPack);
+                    break;
+
+                case dirs::right:
+                    if (temp_dir == 0) (*evil)->Move(speed, dirs::right, dirs::left, ObstPack);
+                    else if (temp_dir == 1) (*evil)->Move(speed, dirs::right, dirs::up, ObstPack);
+                    else (*evil)->Move(speed, dirs::right, dirs::down, ObstPack);
+                    break;
+                }
+            }
+        }
+
+
         //DRAW THINGS *****************
 
         if (Draw && BckgBrush && TextBrush && InactBrush && nrmText)
@@ -883,6 +936,35 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 break;
             }
         }
+        if (!vGhosts.empty())
+        {
+            for (std::vector<gamedll::Creature>::iterator evil = vGhosts.begin(); evil < vGhosts.end(); evil++)
+            {
+                switch ((*evil)->GetType())
+                {
+                case creatures::blue:
+                    Draw->DrawBitmap(bmpBlueEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
+                        (*evil)->ex, (*evil)->ey));
+                    break;
+
+                case creatures::red:
+                    Draw->DrawBitmap(bmpRedEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
+                        (*evil)->ex, (*evil)->ey));
+                    break;
+
+                case creatures::orange:
+                    Draw->DrawBitmap(bmpOrangeEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
+                        (*evil)->ex, (*evil)->ey));
+                    break;
+
+                case creatures::pink:
+                    Draw->DrawBitmap(bmpPinkEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
+                        (*evil)->ex, (*evil)->ey));
+                    break;
+                }
+            }
+        }
+
 
         /////////////////////////////////
         Draw->EndDraw();

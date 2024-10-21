@@ -9,7 +9,7 @@
 #include <random>
 #include <vector>
 
-enum class dirs { up = 0, down = 1, left = 2, right = 4, stop = 5 };
+enum class dirs { up = 0, down = 1, left = 2, right = 3, stop = 4 };
 enum class creatures { blue = 0, red = 1, pink = 2, orange = 3, hurt = 4, pacman = 5, no_type = 6 };
 
 constexpr char up_flag = 0b00000001;
