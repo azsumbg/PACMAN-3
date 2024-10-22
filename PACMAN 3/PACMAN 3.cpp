@@ -23,7 +23,7 @@
 constexpr wchar_t bWinClassName[]{ L"MyNewPacMan" };
 constexpr char tmp_file[]{ ".\\res\\data\\temp.dat" };
 constexpr wchar_t Ltmp_file[]{ L".\\res\\data\\temp.dat" };
-constexpr wchar_t snd_file[]{ L".\\res\\snd\\main.dat" };
+constexpr wchar_t snd_file[]{ L".\\res\\snd\\main.wav" };
 constexpr wchar_t help_file[]{ L".\\res\\data\\help.dat" };
 constexpr wchar_t rec_file[]{ L".\\res\\data\\record.dat" };
 constexpr wchar_t save_file[]{ L".\\res\\data\\save.dat" };
@@ -241,9 +241,10 @@ void GameOver()
 }
 void LevelUp()
 {
+    Draw->EndDraw();
     Draw->BeginDraw();
     Draw->Clear(D2D1::ColorF(D2D1::ColorF::DarkBlue));
-    if (bigText && InactBrush)Draw->DrawTextW(L"НИВОТО ПРЕМИНАТО !", 19, bigText, D2D1::RectF(20.0f, 200.0f, 
+    if (bigText && InactBrush)Draw->DrawTextW(L"НИВОТО ПРЕМИНАТО !", 19, bigText, D2D1::RectF(5.0f, 200.0f, 
         scr_width, scr_height), InactBrush);
     Draw->EndDraw();
     if (sound)
@@ -504,6 +505,11 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         {
             if (LOWORD(lParam) >= b1Rect.left && LOWORD(lParam) <= b1Rect.right)
             {
+                if (name_set)
+                {
+                    if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                    break;
+                }
                 if (sound)mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
                 if (DialogBox(bIns, MAKEINTRESOURCE(IDD_PLAYER), hwnd, &DlgProc) == IDOK)name_set = true;
                 break;
@@ -893,6 +899,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     if (!bIns)ErrExit(eClass);
     CreateResources();
 
+    PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+
     while (bMsg.message != WM_QUIT)
     {
         if ((bRet = PeekMessage(&bMsg, bHwnd, NULL, NULL, PM_REMOVE)) != 0)
@@ -925,7 +933,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             PacMan->Move(speed, PacMan->dir, dirs::stop, LevelObstacles);
         }
         
-        if (vGhosts.size() < 5 + level)
+        if (vGhosts.size() < 4 + level)
         {
             float temp_x = (float)(RandGenerator(200, (int)(scr_width - 50.0f)));
             float temp_y{};
@@ -1061,6 +1069,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             {
                 if (!(PacMan->x >= heart->ex || PacMan->ex <= heart->x || PacMan->y >= heart->ey || PacMan->ey <= heart->y))
                 {
+                    if (sound)mciSendString(L"play .\\res\\snd\\life.wav", NULL, NULL, NULL);
                     score += 20 + level;
                     vHearts.erase(heart);
                     if (!vGhosts.empty())
