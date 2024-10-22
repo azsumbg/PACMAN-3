@@ -118,6 +118,7 @@ ID2D1Bitmap* bmpHurtEvil[11]{ nullptr };
 
 std::vector<gamedll::ATOM>vObstacles;
 std::vector<gamedll::ATOM>vCoins;
+std::vector<gamedll::ATOM> vHearts;
 
 gamedll::Creature PacMan{ nullptr };
 std::vector<gamedll::Creature>vGhosts;
@@ -194,6 +195,7 @@ void InitGame()
 
     vObstacles.clear();
     vCoins.clear();
+    vHearts.clear();
 
     ClearMem(&PacMan);
     if (!vGhosts.empty())
@@ -819,6 +821,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 continue;
             }
         }
+        
         ///////////////////////////////
 
         if (PacMan && !vObstacles.empty())
@@ -863,20 +866,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         
         if (!vGhosts.empty() && PacMan)
         {
-            if (RandGenerator(0, 20) == 6)
+            if (RandGenerator(0, 100) == 6)
             {
                 for (std::vector<gamedll::Creature>::iterator evil = vGhosts.begin(); evil < vGhosts.end(); ++evil)
                 {
                     switch (RandGenerator(0, 1))
                     {
                     case 0:
-                        if (PacMan->x < (*evil)->x)(*evil)->dir = dirs::left;
-                        else (*evil)->dir = dirs::right;
+                        if (PacMan->x < (*evil)->x && !(*evil)->GetFlag(left_flag))(*evil)->dir = dirs::left;
+                        else if (!(*evil)->GetFlag(right_flag)) (*evil)->dir = dirs::right;
                         break;
 
                     case 1:
-                        if (PacMan->y < (*evil)->y)(*evil)->dir = dirs::up;
-                        else (*evil)->dir = dirs::down;
+                        if (PacMan->y < (*evil)->y && !(*evil)->GetFlag(up_flag))(*evil)->dir = dirs::up;
+                        else if (!(*evil)->GetFlag(down_flag))(*evil)->dir = dirs::down;
                         break;
                     }
                 }
@@ -936,6 +939,80 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             }
         }
 
+        if (vHearts.size() < 3 && RandGenerator(0, 500) == 66 && !vObstacles.empty())
+        {
+            bool place_found = false;
+            while (!place_found)
+            {
+                place_found = true;
+                
+                gamedll::ATOM DummyHeart((float)(RandGenerator(0, (int)(scr_width - 25.0f))),
+                    (float)(RandGenerator((int)(sky + 10.0f), (int)(ground - 20.0f))), 20.0f, 17.0f);
+
+                for (std::vector<gamedll::ATOM>::iterator brick = vObstacles.begin(); brick < vObstacles.end(); brick++)
+                {
+                    if (!(DummyHeart.x >= brick->ex || DummyHeart.ex < brick->x
+                        || DummyHeart.y >= brick->ey || DummyHeart.ey < brick->y))
+                    {
+                        place_found = false;
+                        break;
+                    }
+                }
+                if (place_found)vHearts.push_back(DummyHeart);
+            }
+        }
+
+        if (PacMan && !vHearts.empty())
+        {
+            for (std::vector<gamedll::ATOM>::iterator heart = vHearts.begin(); heart < vHearts.end(); heart++)
+            {
+                if (!(PacMan->x >= heart->ex || PacMan->ex <= heart->x || PacMan->y >= heart->ey || PacMan->ey <= heart->y))
+                {
+                    score += 20 + level;
+                    vHearts.erase(heart);
+                    if (!vGhosts.empty())
+                        for (int i = 0; i < vGhosts.size(); i++)
+                        {
+                            if (!vGhosts[i]->panic)vGhosts[i]->Hurt();
+                        }
+
+                    break;
+                }
+            }
+        }
+
+        if (!vGhosts.empty())
+        {
+            for (int i = 0; i < vGhosts.size(); i++)
+            {
+                if (vGhosts[i]->panic)vGhosts[i]->Hurt();
+            }
+        }
+        if (!vGhosts.empty() && PacMan)
+        {
+            for (std::vector<gamedll::Creature>::iterator evil = vGhosts.begin(); evil < vGhosts.end(); evil++)
+            {
+                if (!(PacMan->x > (*evil)->ex || PacMan->ex<(*evil)->x || PacMan->y >(*evil)->ey || PacMan->ey < (*evil)->y))
+                {
+                    if ((*evil)->GetType() != creatures::hurt)
+                    {
+
+                        RIP_x = PacMan->x;
+                        RIP_y = PacMan->y;
+                        ClearMem(&PacMan);
+                        break;
+                    }
+                    else
+                    {
+                        score += 50 + level;
+                        (*evil)->Release();
+                        vGhosts.erase(evil);
+                        break;
+                    }
+                }
+            }
+        }
+
         //DRAW THINGS *****************
 
         if (Draw && BckgBrush && TextBrush && InactBrush && nrmText)
@@ -956,6 +1033,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             ++field_frame;
             if (field_frame > 50)field_frame = 0;
         }
+       
         if (!vObstacles.empty())
         {
             for (int i = 0; i < vObstacles.size(); i++)
@@ -1017,11 +1095,35 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                     Draw->DrawBitmap(bmpPinkEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
                         (*evil)->ex, (*evil)->ey));
                     break;
+
+                case creatures::hurt:
+                    Draw->DrawBitmap(bmpHurtEvil[(*evil)->GetFrame()], D2D1::RectF((*evil)->x, (*evil)->y,
+                        (*evil)->ex, (*evil)->ey));
+                    break;
                 }
             }
         }
 
+        if (!vHearts.empty())
+        {
+            for (std::vector<gamedll::ATOM>::iterator heart = vHearts.begin(); heart < vHearts.end(); heart++)
+                Draw->DrawBitmap(bmpLife, D2D1::RectF(heart->x, heart->y, heart->ex, heart->ey));
+        }
+        
+        if (RIP_x > 0 && RIP_y > 0)
+        {
+            Draw->DrawBitmap(bmpRIP, D2D1::RectF(RIP_x, RIP_y, RIP_x + 80.0f, RIP_y + 94.0f));
+            Draw->EndDraw();
+            if (sound)
+            {
+                PlaySound(NULL, NULL, NULL);
+                PlaySound(L".\\res\\snd\\killed.wav", NULL, SND_SYNC);
+            }
+            else(Sleep(2000));
+            GameOver();
+        }
 
+        
         /////////////////////////////////
         Draw->EndDraw();
     }

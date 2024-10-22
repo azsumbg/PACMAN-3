@@ -112,12 +112,12 @@ namespace gamedll
 			CREATURES(float _x, float _y) :ATOM(_x, _y) {};
 
 			char flags{ 0 };
-			bool panic = false;
-
+			
 		public:
 			
 			dirs dir = dirs::stop;
-			
+			bool panic = false;
+
 			virtual ~CREATURES() {};
 			virtual void Release() = 0;
 
