@@ -52,7 +52,6 @@ HMENU bStore{ nullptr };
 MSG bMsg{};
 BOOL bRet{ -1 };
 PAINTSTRUCT bPaint{};
-UINT bTimer = -1 ;
 POINT cur_pos{};
 
 D2D1_RECT_F b1Rect{ 10.0f, 10.0f, scr_width / 3 - 50.0f, 50.0f };
@@ -235,11 +234,67 @@ void InitGame()
 
 void GameOver()
 {
-    KillTimer(bHwnd, bTimer);
     PlaySound(NULL, NULL, NULL);
 
     bMsg.message = WM_QUIT;
     bMsg.wParam = 0;
+}
+void LevelUp()
+{
+    Draw->BeginDraw();
+    Draw->Clear(D2D1::ColorF(D2D1::ColorF::DarkBlue));
+    if (bigText && InactBrush)Draw->DrawTextW(L"НИВОТО ПРЕМИНАТО !", 19, bigText, D2D1::RectF(20.0f, 200.0f, 
+        scr_width, scr_height), InactBrush);
+    Draw->EndDraw();
+    if (sound)
+    {
+        PlaySound(NULL, NULL, NULL);
+        PlaySound(L".\\res\\snd\\levelup.wav", NULL, SND_SYNC);
+        PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+    }
+    else Sleep(2500);
+
+    ++level;
+    speed = level * 0.5f;
+    
+    vObstacles.clear();
+    vCoins.clear();
+    vHearts.clear();
+
+    ClearMem(&PacMan);
+    if (!vGhosts.empty())
+        for (int i = 0; i < vGhosts.size(); i++)ClearMem(&vGhosts[i]);
+    vGhosts.clear();
+
+    for (float dum_x = 50.0f; dum_x < scr_width - 50.0f; dum_x += 50.0f)
+    {
+        for (float dum_y = 100.0f; dum_y < ground - 50.0f; dum_y += 100.0f)
+        {
+            if (RandGenerator(0, 1) == 1)vObstacles.push_back(gamedll::ATOM(dum_x, dum_y, 45.0f, 45.0f));
+        }
+    }
+    for (float dum_y = 70.0f; dum_y < ground - 50.0f; dum_y += 50.0f)
+    {
+        for (float dum_x = 10.0f; dum_x < scr_width; dum_x += 40.0f)
+        {
+            gamedll::ATOM dummy(dum_x, dum_y, 15.0f, 14.0f);
+            bool dummy_ok = true;
+
+            for (int i = 0; i < vObstacles.size(); i++)
+            {
+                if (!(dummy.x >= vObstacles[i].ex || dummy.ex <= vObstacles[i].x
+                    || dummy.y >= vObstacles[i].ey || dummy.ey <= vObstacles[i].y))
+                {
+                    dummy_ok = false;
+                    break;
+                }
+            }
+
+            if (dummy_ok)vCoins.push_back(dummy);
+        }
+    }
+
+    PacMan = gamedll::Factory(creatures::pacman, 45.0f, ground - 45.0f);
 }
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -255,15 +310,24 @@ INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_COMMAND:
-        if (GetDlgItemText(hwnd, IDC_NAME, current_player, 16) < 1)
+        switch (LOWORD(wParam))
         {
-            wcscpy_s(current_player, L"ONE PACMAN");
-            if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
-            MessageBox(bHwnd, L"Името си ли забрави ?", L"Забраватор !", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        case IDCANCEL:
             EndDialog(hwnd, IDCANCEL);
             break;
+
+        case IDOK:
+            if (GetDlgItemTextW(hwnd, IDC_NAME, current_player, 16) < 1)
+            {
+                wcscpy_s(current_player, L"ONE PACMAN");
+                if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+                MessageBox(bHwnd, L"Името си ли забрави ?", L"Забраватор !", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+                EndDialog(hwnd, IDCANCEL);
+                break;
+            }
+            EndDialog(hwnd, IDOK);
+            break;
         }
-        EndDialog(hwnd, IDOK);
         break;
     }
 
@@ -274,7 +338,6 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
     switch (ReceivedMsg)
     {
     case WM_CREATE:
-        SetTimer(hwnd, bTimer, 1000, NULL);
         
         bBar = CreateMenu();
         bMain = CreateMenu();
@@ -433,6 +496,36 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         case VK_DOWN:
             PacMan->dir = dirs::down;
             break;
+        }
+        break;
+
+    case WM_LBUTTONDOWN:
+        if (HIWORD(lParam) <= 50)
+        {
+            if (LOWORD(lParam) >= b1Rect.left && LOWORD(lParam) <= b1Rect.right)
+            {
+                if (sound)mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+                if (DialogBox(bIns, MAKEINTRESOURCE(IDD_PLAYER), hwnd, &DlgProc) == IDOK)name_set = true;
+                break;
+            }
+            if (LOWORD(lParam) >= b2Rect.left && LOWORD(lParam) <= b2Rect.right)
+            {
+                mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+                if (sound)
+                {
+                    sound = false;
+                    PlaySound(NULL, NULL, NULL);
+                    break;
+                }
+                else
+                {
+                    sound = true;
+                    PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+                    break;
+                }
+
+                break;
+            }
         }
         break;
 
@@ -773,7 +866,7 @@ void CreateResources()
             Draw->DrawBitmap(bmpIntro, D2D1::RectF(0, 0, scr_width, scr_height));
             if (RandGenerator(0, 10) == 5)
             {
-                Draw->DrawTextW(L"PACMAN IN ACTION !\n\n\n\n\ndev. Daniel", 35, bigText, D2D1::RectF(5.0f, 70.0f,
+                Draw->DrawTextW(L"PACMAN IN ACTION !\n\n\n\n      dev. Daniel", 41, bigText, D2D1::RectF(5.0f, 70.0f,
                     scr_width, scr_height), HgltBrush);
                 mciSendString(L"play .\\res\\snd\\buzz.wav", NULL, NULL, NULL);
                 Draw->EndDraw();
@@ -787,7 +880,7 @@ void CreateResources()
     {
         Draw->BeginDraw();
         Draw->DrawBitmap(bmpIntro, D2D1::RectF(0, 0, scr_width, scr_height));
-        Draw->DrawTextW(L"PACMAN IN ACTION !\n\n\n\n\ndev. Daniel", 35, bigText, D2D1::RectF(5.0f, 70.0f,
+        Draw->DrawTextW(L"PACMAN IN ACTION !\n\n\n\n      dev. Daniel", 41, bigText, D2D1::RectF(5.0f, 70.0f,
             scr_width, scr_height), HgltBrush);
         Draw->EndDraw();
     }
@@ -832,7 +925,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             PacMan->Move(speed, PacMan->dir, dirs::stop, LevelObstacles);
         }
         
-        if (vGhosts.size() < 4 + level)
+        if (vGhosts.size() < 5 + level)
         {
             float temp_x = (float)(RandGenerator(200, (int)(scr_width - 50.0f)));
             float temp_y{};
@@ -1004,6 +1097,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                     }
                     else
                     {
+                        if (sound)mciSendString(L"play .\\res\\snd\\eaten.wav", NULL, NULL, NULL);
                         score += 50 + level;
                         (*evil)->Release();
                         vGhosts.erase(evil);
@@ -1044,6 +1138,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             for (int i = 0; i < vCoins.size(); i++)
                 Draw->DrawBitmap(bmpCoin, D2D1::RectF(vCoins[i].x, vCoins[i].y, vCoins[i].ex, vCoins[i].ey));
         }
+        else LevelUp();
 
         if (PacMan)
         {
@@ -1110,6 +1205,31 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 Draw->DrawBitmap(bmpLife, D2D1::RectF(heart->x, heart->y, heart->ex, heart->ey));
         }
         
+        if (nrmText && InactBrush)
+        {
+            wchar_t stat_text[100] = L"играч: ";
+            wchar_t add[10] = L"\0";
+            int size = 0;
+
+            wcscat_s(stat_text, current_player);
+
+            wcscat_s(stat_text, L", резултат: ");
+            wsprintf(add, L"%d", score);
+            wcscat_s(stat_text, add);
+
+            wcscat_s(stat_text, L", ниво: ");
+            wsprintf(add, L"%d", level);
+            wcscat_s(stat_text, add);
+
+            for (int i = 0; i < 100; i++)
+            {
+                if (stat_text[i] != '\0')size++;
+                else break;
+            }
+
+            Draw->DrawTextW(stat_text, size, nrmText, D2D1::RectF(10.0f, ground + 10.0f, scr_width, scr_height), InactBrush);
+        }
+
         if (RIP_x > 0 && RIP_y > 0)
         {
             Draw->DrawBitmap(bmpRIP, D2D1::RectF(RIP_x, RIP_y, RIP_x + 80.0f, RIP_y + 94.0f));
