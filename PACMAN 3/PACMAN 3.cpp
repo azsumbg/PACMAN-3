@@ -76,6 +76,9 @@ float speed{};
 
 int field_frame = 0;
 
+float RIP_x{};
+float RIP_y{};
+
 ////////////////////////////////
 
 gamedll::RANDENGINE RandGenerator{};
@@ -206,7 +209,7 @@ void InitGame()
     }
     for (float dum_y = 70.0f; dum_y < ground - 50.0f; dum_y += 50.0f)
     {
-        for (float dum_x = 10.0f; dum_x < scr_width; dum_x += 20.0f)
+        for (float dum_x = 10.0f; dum_x < scr_width; dum_x += 40.0f)
         {
             gamedll::ATOM dummy(dum_x, dum_y, 15.0f, 14.0f);
             bool dummy_ok = true;
@@ -833,11 +836,51 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             int temp_type = RandGenerator(0, 3);
             int temp_dir = RandGenerator(0, 3);
             
-            if (RandGenerator(0, 2) == 1)temp_y = sky;
-            else temp_y = ground - 40.0f;
-           
+            switch (RandGenerator(0, 3))
+            {
+            case 0:
+                temp_y = sky;
+                break;
+
+            case 1:
+                temp_y = ground - 40.0f;
+                break;
+
+            case 2:
+                temp_x = 2;
+                temp_y = (float)(RandGenerator((int)(sky), (int)(ground - 100.0f)));
+                break;
+
+            case 3:
+                temp_x = scr_width-50.0f;
+                temp_y = (float)(RandGenerator((int)(sky), (int)(ground - 100.0f)));
+                break;
+            }
+            
             vGhosts.push_back(gamedll::Factory(static_cast<creatures>(temp_type), temp_x, temp_y));
             vGhosts.back()->dir = static_cast<dirs>(temp_dir);
+        }
+        
+        if (!vGhosts.empty() && PacMan)
+        {
+            if (RandGenerator(0, 20) == 6)
+            {
+                for (std::vector<gamedll::Creature>::iterator evil = vGhosts.begin(); evil < vGhosts.end(); ++evil)
+                {
+                    switch (RandGenerator(0, 1))
+                    {
+                    case 0:
+                        if (PacMan->x < (*evil)->x)(*evil)->dir = dirs::left;
+                        else (*evil)->dir = dirs::right;
+                        break;
+
+                    case 1:
+                        if (PacMan->y < (*evil)->y)(*evil)->dir = dirs::up;
+                        else (*evil)->dir = dirs::down;
+                        break;
+                    }
+                }
+            }
         }
         
         if (!vGhosts.empty() && !vObstacles.empty())
@@ -879,6 +922,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             }
         }
 
+        if (PacMan && !vCoins.empty())
+        {
+            for (std::vector<gamedll::ATOM>::iterator coin = vCoins.begin(); coin < vCoins.end(); coin++)
+            {
+                if (!(PacMan->x >= coin->ex || PacMan->ex <= coin->x || PacMan->y >= coin->ey || PacMan->ey <= coin->y))
+                {
+                    if (sound)mciSendString(L"play .\\res\\snd\\coin.wav", NULL, NULL, NULL);
+                    score += 10 + level;
+                    vCoins.erase(coin);
+                    break;
+                }
+            }
+        }
 
         //DRAW THINGS *****************
 
