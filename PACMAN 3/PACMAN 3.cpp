@@ -231,10 +231,69 @@ void InitGame()
 
     PacMan = gamedll::Factory(creatures::pacman, 45.0f, ground - 45.0f);
 }
+BOOL CheckRecord()
+{
+    if (score < 1)return no_record;
+    int result = 0;
+    CheckFile(rec_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        std::wofstream rec(rec_file);
+        rec << score << std::endl;
+        for (int i = 0; i < 16; i++)rec << static_cast<int>(current_player[i]) << std::endl;
+        rec.close();
+        return first_record;
+    }
+    else
+    {
+        std::wifstream check(rec_file);
+        check >> result;
+        check.close();
 
+        if (score > result)
+        {
+            std::wofstream rec(rec_file);
+            rec << score << std::endl;
+            for (int i = 0; i < 16; i++)rec << static_cast<int>(current_player[i]) << std::endl;
+            rec.close();
+            return record;
+        }
+    }
+    return no_record;
+}
 void GameOver()
 {
     PlaySound(NULL, NULL, NULL);
+
+    switch (CheckRecord())
+    {
+    case no_record:
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::Beige));
+        Draw->DrawTextW(L"ЗАГУБИ ИГРАТА !", 16, bigText, D2D1::RectF(10.0f, 200.0f, scr_width, scr_height), TextBrush);
+        Draw->EndDraw();
+        if (sound)PlaySound(L".\\res\\snd\\loose.wav", NULL, SND_SYNC);
+        else Sleep(3000);
+        break;
+
+    case first_record:
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::Beige));
+        Draw->DrawTextW(L"ПЪРВИ РЕКОРД !", 15, bigText, D2D1::RectF(10.0f, 200.0f, scr_width, scr_height), TextBrush);
+        Draw->EndDraw();
+        if (sound)PlaySound(L".\\res\\snd\\record.wav", NULL, SND_SYNC);
+        else Sleep(3000);
+        break;
+
+    case record:
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::Beige));
+        Draw->DrawTextW(L"СВЕТОВЕН РЕКОРД !", 18, bigText, D2D1::RectF(10.0f, 200.0f, scr_width, scr_height), TextBrush);
+        Draw->EndDraw();
+        if (sound)PlaySound(L".\\res\\snd\\record.wav", NULL, SND_SYNC);
+        else Sleep(3000);
+        break;
+    }
 
     bMsg.message = WM_QUIT;
     bMsg.wParam = 0;
@@ -297,6 +356,55 @@ void LevelUp()
 
     PacMan = gamedll::Factory(creatures::pacman, 45.0f, ground - 45.0f);
 }
+void ShowRecord()
+{
+    int result{};
+    CheckFile(rec_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Все още няма постигнат рекорд !\n\nПостарай се повече !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
+
+    wchar_t rectext[100] = L"Най-добър играч: ";
+    wchar_t saved_player[16] = L"\0";
+    wchar_t add[5] = L"\0";
+
+    std::wifstream check(rec_file);
+    check >> result;
+    for (int i = 0; i < 16; i++)
+    {
+        int letter = 0;
+        check >> letter;
+        saved_player[i] = static_cast<wchar_t>(letter);
+    }
+    check.close();
+
+    wcscat_s(rectext, saved_player);
+    wcscat_s(rectext, L"\n\nСветовен рекорд: ");
+    wsprintf(add, L"%d", result);
+    wcscat_s(rectext, add);
+
+    result = 0;
+    for (int i = 0; i < 100; i++)
+    {
+        if (rectext[i] != '\0')result++;
+        else break;
+    }
+
+    if (Draw && midText && TextBrush)
+    {
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::DarkBlue));
+        Draw->DrawText(rectext, result, midText, D2D1::RectF(20.0f, 150.0f, scr_width, scr_height), TextBrush);
+        Draw->EndDraw();
+        if (sound)mciSendString(L"play .\\res\\snd\\showrec.wav", NULL, NULL, NULL);
+    }
+    Sleep(2500);
+}
+
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -468,13 +576,27 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
             break;
 
         case mLvl:
-
+            pause = true;
+            if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+            if (MessageBox(hwnd, L"Ако почнеш ново ниво, ще загубиш точките от това !\n\nНаистина ли минаваш на следващо ниво ?",
+                L"Ново ниво !", MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)
+            {
+                pause = false;
+                break;
+            }
+            LevelUp();
             break;
 
         case mExit:
             SendMessage(hwnd, WM_CLOSE, NULL, NULL);
             break;
 
+
+        case mHoF:
+            pause = true;
+            ShowRecord();
+            pause = false;
+            break;
         }
         break;
 
@@ -989,7 +1111,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         
         if (!vGhosts.empty() && !vObstacles.empty())
         {
-            gamedll::ATOMPACK ObstPack(vObstacles.size());
+            gamedll::ATOMPACK ObstPack((int)(vObstacles.size()));
 
             for (int i = 0; i < vObstacles.size(); i++)ObstPack.push_back(vObstacles[i]);
 
