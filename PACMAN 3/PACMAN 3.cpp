@@ -583,7 +583,51 @@ void LoadGame()
     if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
     MessageBox(bHwnd, L"Играта е заредана !", L"Съхранение", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
 }
+void ShowHelp()
+{
+    int result{};
+    CheckFile(help_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Липсва помощ за играта !\n\nСвържете се с разработчика !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
 
+    wchar_t help_text[1000] = L"\0";
+    
+    std::wifstream help(help_file);
+    help >> result;
+    for (int i = 0; i < result; i++)
+    {
+        int letter = 0;
+        help >> letter;
+        help_text[i] = static_cast<wchar_t>(letter);
+    }
+    help.close();
+
+    if (sound)mciSendString(L"play .\\res\\snd\\help.wav", NULL, NULL, NULL);
+
+    if (Draw && BckgBrush && TextBrush && InactBrush && nrmText)
+    {
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::DarkBlue));
+        Draw->FillRectangle(D2D1::RectF(0, 0, scr_width, 50.0f), BckgBrush);
+        if (name_set)Draw->DrawTextW(L"ИМЕ НА ИГРАЧ", 13, nrmText, b1Rect, InactBrush);
+        else
+        {
+            if (b1Hglt)Draw->DrawTextW(L"ИМЕ НА ИГРАЧ", 13, nrmText, b1Rect, HgltBrush);
+            else Draw->DrawTextW(L"ИМЕ НА ИГРАЧ", 13, nrmText, b1Rect, TextBrush);
+        }
+        if (b2Hglt)Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmText, b2Rect, HgltBrush);
+        else Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmText, b2Rect, TextBrush);
+        if (b3Hglt)Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmText, b3Rect, HgltBrush);
+        else Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmText, b3Rect, TextBrush);
+        Draw->DrawTextW(help_text, result, midText, D2D1::RectF(10.0f, 100.0f, scr_width, scr_height), HgltBrush);
+        Draw->EndDraw();
+    }
+}
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -842,6 +886,24 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
                     break;
                 }
 
+                break;
+            }
+            if (LOWORD(lParam) >= b3Rect.left && LOWORD(lParam) <= b3Rect.right)
+            {
+                if (sound) mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+                if (!show_help)
+                {
+                    show_help = true;
+                    pause = true;
+                    ShowHelp();
+                    break;
+                }
+                else
+                {
+                    show_help = false;
+                    pause = false;
+                    break;
+                }
                 break;
             }
         }
@@ -1158,7 +1220,7 @@ void CreateResources()
             }
 
             hr = iWriteFactory->CreateTextFormat(L"GNABRI", NULL, DWRITE_FONT_WEIGHT_EXTRA_BLACK,
-                DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 36, L"", &midText);
+                DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 28, L"", &midText);
             if (hr != S_OK)
             {
                 LogError(L"Error creating midTextFormat !");
