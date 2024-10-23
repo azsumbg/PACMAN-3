@@ -404,6 +404,185 @@ void ShowRecord()
     }
     Sleep(2500);
 }
+void SaveGame()
+{
+    int result{};
+    CheckFile(save_file, &result);
+    if (result == FILE_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        if (MessageBox(bHwnd, L"Съществува записана игра, която ще се загуби !\n\nНаистина ли да я презапиша ?",
+            L"Презапис", MB_YESNO | MB_APPLMODAL | MB_ICONEXCLAMATION) == IDNO)return;
+    }
+
+    std::wofstream save(save_file);
+
+    save << score << std::endl;
+    save << level << std::endl;
+    save << speed << std::endl;
+    for (int i = 0; i < 16; i++)save << static_cast<int>(current_player[i]) << std::endl;
+    save << name_set << std::endl;
+
+    save << vObstacles.size() << std::endl;
+    for (int i = 0; i < vObstacles.size(); i++)
+    {
+        save << vObstacles[i].x << std::endl;
+        save << vObstacles[i].y << std::endl;
+    }
+
+    save << vCoins.size() << std::endl;
+    if (!vCoins.empty())
+        for (int i = 0; i < vCoins.size(); i++)
+        {
+            save << vCoins[i].x << std::endl;
+            save << vCoins[i].y << std::endl;
+        }
+
+    save << vHearts.size() << std::endl;
+    if (!vHearts.empty())
+        for (int i = 0; i < vHearts.size(); i++)
+        {
+            save << vHearts[i].x << std::endl;
+            save << vHearts[i].y << std::endl;
+        }
+
+    save << vGhosts.size() << std::endl;
+    if (!vGhosts.empty())
+        for (int i = 0; i < vGhosts.size(); i++)
+        {
+            save << vGhosts[i]->x << std::endl;
+            save << vGhosts[i]->y << std::endl;
+            save << static_cast<int>(vGhosts[i]->GetType()) << std::endl;
+        }
+
+    if (!PacMan)save << 0 << std::endl;
+    else
+    {
+        save << 1 << std::endl;
+        save << PacMan->x << std::endl;
+        save << PacMan->y << std::endl;
+    }
+
+    save.close();
+
+    if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+    MessageBox(bHwnd, L"Играта е записана !", L"Съхранение", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
+}
+void LoadGame()
+{
+    int result{};
+    CheckFile(save_file, &result);
+    if (result == FILE_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        if (MessageBox(bHwnd, L"Ако продължиш, ще загубиш тази игра !\n\nНаистина ли да я презапиша ?",
+            L"Презапис", MB_YESNO | MB_APPLMODAL | MB_ICONEXCLAMATION) == IDNO)return;
+    }
+    else
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Все още няма записана игра !\n\nПостарай се повече !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
+
+    vObstacles.clear();
+    vCoins.clear();
+    vHearts.clear();
+
+    ClearMem(&PacMan);
+    if (!vGhosts.empty())
+        for (int i = 0; i < vGhosts.size(); i++)ClearMem(&vGhosts[i]);
+    vGhosts.clear();
+
+    result = 0;
+
+    std::wifstream save(save_file);
+
+    save >> score;
+    save >> level;
+    save >> speed;
+    for (int i = 0; i < 16; i++)
+    {
+        int letter = 0;
+
+        save >> letter;
+        current_player[i]=static_cast<wchar_t>(letter);
+    }
+    save >> name_set;
+
+    save >> result;
+    for (int i = 0; i < result; i++)
+    {
+        float temp_x = 0;
+        float temp_y = 0;
+
+        save >> temp_x;
+        save >> temp_y;
+
+        vObstacles.push_back(gamedll::ATOM(temp_x, temp_y, 45.0f, 45.0f));
+    }
+
+    save >> result;
+    if(result>0)
+        for (int i = 0; i < result; i++)
+        {
+            float temp_x = 0;
+            float temp_y = 0;
+
+            save >> temp_x;
+            save >> temp_y;
+
+            vCoins.push_back(gamedll::ATOM(temp_x, temp_y, 15.0f, 14.0f));
+        }
+
+    save >> result;
+    if (result > 0)
+        for (int i = 0; i < result; i++)
+        {
+            float temp_x = 0;
+            float temp_y = 0;
+
+            save >> temp_x;
+            save >> temp_y;
+
+            vHearts.push_back(gamedll::ATOM(temp_x, temp_y, 20.0f, 17.0f));
+        }
+
+    save >> result;
+    if (result > 0)
+        for (int i = 0; i < result; i++)
+        {
+            float temp_x = 0;
+            float temp_y = 0;
+            int temp_type = -1;
+
+            save >> temp_x;
+            save >> temp_y;
+            save >> temp_type;
+
+            vGhosts.push_back(gamedll::Factory(static_cast<creatures>(temp_type), temp_x, temp_y));
+            if (vGhosts.back()->GetType() == creatures::hurt)vGhosts.back()->Hurt();
+        }
+    
+    save >> result;
+    if (result == 0)GameOver();
+    else 
+    {
+        float temp_x = 0;
+        float temp_y = 0;
+
+        save >> temp_x;
+        save >> temp_y;
+
+        PacMan = gamedll::Factory(creatures::pacman, temp_x, temp_y);
+    }
+
+    save.close();
+
+    if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+    MessageBox(bHwnd, L"Играта е заредана !", L"Съхранение", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
+}
 
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -591,6 +770,17 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
             SendMessage(hwnd, WM_CLOSE, NULL, NULL);
             break;
 
+        case mSave:
+            pause = true;
+            SaveGame();
+            pause = false;
+            break;
+
+        case mLoad:
+            pause = true;
+            LoadGame();
+            pause = false;
+            break;
 
         case mHoF:
             pause = true;
